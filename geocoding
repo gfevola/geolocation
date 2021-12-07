@@ -1,0 +1,86 @@
+
+#require(c(rgdal,rgeos))
+
+#or geocode address --------------------------------------
+function(address){
+
+if(suppressWarnings(is.null(address)))
+    return(data.frame())
+   tryCatch(
+     d<-jsonlite::fromJSON(gsub('\\@addr\\@',gsub('\\s+','\\%20',address),
+           'http://nominatim.openstreetmap.org/search/@addr@?format=json&addressdetails=0&limit=1')),
+      error = function(c) return(data.frame())
+    )
+    if(length(d)==0) return(data.frame())
+     return(data.frame(lon=as.numeric(d$lon),lat=as.numeric(d$lat)))      
+
+}
+#----------------------------------------------------------
+#----------------------------------------------------------
+
+
+#Master zip code file
+#must include "ZipCode" column
+
+function(full,missing){
+
+ full$Longitude[is.na(full$Longitude)]<-0
+ full$Latitude[is.na(full$Latitude)]<-0
+ missing$Longitude[is.na(missing$Longitude)]<-0
+ missing$Latitude[is.na(missing$Latitude)]<-0
+
+
+ coordinates(full)<-c("Longitude","Latitude")
+ proj4string(full)<-CRS("+proj=longlat +datum=WGS84")
+ full.rev<-spTransform(full,CRS("+proj=utm +ellips=WGS84"))
+
+ ##dataframe of "lon", "lat" ##
+ coordinates(missing)<-c("Longitude","Latitude")
+ proj4string(missing)<-CRS("+proj=longlat +datum=WGS84")
+ missing.rev<-spTransform(missing,CRS("+proj=utm +ellips=WGS84"))
+
+ t<-c(0)
+ for (e in 1:nrow(missing.rev)){
+  t[e]<-full.rev$ZipCode[which.min(sqrt((full.rev$Longitude-missing.rev$Longitude[e])^2+(full.rev$Latitude-missing.rev$Latitude[e])^2))]
+ }
+ missing$ClosestZip<-t
+ return(missing)
+
+}
+
+
+#-------------------------------------------------------
+#Find nearest Airport Codes, to identify mislabeling
+function(full){
+
+ 
+ full$Longitude[is.na(full$Longitude)]<-0
+ full$Latitude[is.na(full$Latitude)]<-0
+
+
+
+ coordinates(full)<-c("Longitude","Latitude")
+ proj4string(full)<-CRS("+proj=longlat +datum=WGS84")
+ full.rev<-spTransform(full,CRS("+proj=utm +ellips=WGS84"))
+
+
+ t<-matrix(0,nrow=nrow(full.rev),ncol=8)
+
+ for (e in 1:nrow(full.rev)){
+  z<-c(0)
+  temp<-full.rev
+  
+ #Find 8 nearest, first is self
+  for (x in 1:8){
+   fnd<-which.min(sqrt((temp$Longitude-full.rev$Longitude[e])^2+(temp$Latitude-full.rev$Latitude[e])^2))
+   z[x]<-temp$Airport[fnd]
+   temp<-temp[-fnd,]
+  }
+
+  t[e,]<-z
+
+ }
+ output<-cbind(full,t)
+ return(output)
+
+}
