@@ -9,7 +9,10 @@ require(rgdal)
 require(rgeos)
 require(curl)
 require(magrittr)
+require(osrm)
+require(sf)
 
+require(leaflet)
 
 #load csv
 zipsfile <- read.csv(file.choose(), stringsAsFactors = FALSE)
@@ -52,13 +55,48 @@ if(suppressWarnings(is.null(address)))
 
 ```{r}
 
-#run sample
+routingmap <- function(orig, dest, returnmap=TRUE){
+  
+ # z<-osrmRoute(src=orig,dst=dest, returnclass="sf")
+ # pathgeom <- st_geometry(z)
+  
+  z <- osrmRoute(src=orig,dst=dest)
+  
+  if (returnmap==TRUE){
+    m<-leaflet()%>%
+        addTiles() %>%
+        addPolylines(lat=z$lat, lng = z$lon)
+    return(m)
+  } else {
+    
+    return(z)
+  }
+  
+}
+
+```
+
+
+```{r}
+
+#run sample 
 
 addr.name = "1 Washington Plaza NYC"
+
 addr.coord <- findaddr(addr.name) %>% coordTransform("lon", "lat")
 
 foundzip <- zips.rev$zip[sqrt((zips.rev$lng-addr.coord$lon[1])^2+(zips.rev$lat-addr.coord$lat[1])^2) %>% which.min()]
 
-```
 
+#
+addr.name1 = "300 S Orange Ave Orlando FL"
+addr.name2 = "1600 Peachtree St Atlanta"
+
+addr.coord1 <- findaddr(addr.name1)
+addr.coord2 <- findaddr(addr.name2)
+
+route_exp <- routing(addr.coord1,addr.coord2, TRUE)
+
+
+```
 
