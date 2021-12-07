@@ -1,0 +1,64 @@
+
+```{r}
+#setup
+
+#download zip coordinates at https://simplemaps.com/data/us-zips
+
+require(openxlsx)
+require(rgdal)
+require(rgeos)
+require(curl)
+require(magrittr)
+
+
+#load csv
+zipsfile <- read.csv(file.choose(), stringsAsFactors = FALSE)
+
+```
+
+
+```{r}
+#function 1: transform coordinate system
+
+coordTransform <- function(dat,longitudeCol, latitudeCol){
+   coordinates(dat)<-c(longitudeCol,latitudeCol)
+   proj4string(dat)<-CRS("+proj=longlat +datum=WGS84")
+   dat.rev<-spTransform(dat,CRS("+proj=utm +ellips=WGS84"))
+   return(dat.rev)
+}
+
+```
+
+
+```{r}
+#function 2: geolocate address
+
+findaddr <- function(address){
+
+if(suppressWarnings(is.null(address)))
+    return(data.frame())
+   tryCatch(
+     d<-jsonlite::fromJSON(gsub('\\@addr\\@',gsub('\\s+','\\%20',address),
+           'http://nominatim.openstreetmap.org/search/@addr@?format=json&addressdetails=0&limit=1')),
+      error = function(c) return(data.frame())
+    )
+    if(length(d)==0) return(data.frame())
+     return(data.frame(lon=as.numeric(d$lon),lat=as.numeric(d$lat)))      
+
+}
+
+
+```
+
+```{r}
+
+#run sample
+
+addr.name = "1 Washington Plaza NYC"
+addr.coord <- findaddr(addr.name) %>% coordTransform("lon", "lat")
+
+foundzip <- zips.rev$zip[sqrt((zips.rev$lng-addr.coord$lon[1])^2+(zips.rev$lat-addr.coord$lat[1])^2) %>% which.min()]
+
+```
+
+
