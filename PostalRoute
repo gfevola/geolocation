@@ -1,0 +1,51 @@
+function(PRdata) {
+
+
+orig_addr<-paste(PRdata$Shipper.Address1,PRdata$Shipper.City,PRdata$Shipper.State,sep=",")
+dest_addr<-paste(PRdata$Consignee.Address1,PRdata$Consignee.City,PRdata$Consignee.State,sep=",")
+
+addr<-c(orig_addr,dest_addr)
+addr<-data.table(address=unique(addr))
+
+latlong<-data.frame(matrix(0,nrow=length(addr$address),ncol=2))
+colnames(latlong)<-c('Longitude','Latitude')
+  for (i in 1:length(addr$address)){
+   #geocode *******************
+   if(suppressWarnings(is.null(addr$address[i])))
+      latlong[i,]<-list("","")
+    tryCatch(
+      d<-jsonlite::fromJSON(gsub('\\@addr\\@',gsub('\\s+','\\%20',addr$address[i]),
+            'http://nominatim.openstreetmap.org/search/@addr@?format=json&addressdetails=0&limit=1')),
+       error = function(c) g<-0
+     )
+      if(length(d)==0) g<-0
+      else { 
+       latlong[i,1]<-as.numeric(d$lon)
+       latlong[i,2]<-as.numeric(d$lat)}
+   #****************************
+  }
+
+addr$lon<-latlong[,1]
+addr$lat<-latlong[,2]
+
+Ship<-data.frame(Origin=orig_addr, Destination=dest_addr)
+
+
+Ship<-merge(Ship,addr,by.x="Origin",by.y="address")
+Ship<-merge(Ship,addr,by.x="Destination",by.y="address")
+
+colnames(Ship)<-c('Origin','Destination','lon','lat','lon_end','lat_end')
+ 
+ #%%route --------------
+ for (s in 1:length(Ship$Origin)){
+  orig<-data.frame(id=s*2,lon=Ship$lon[s],lat=Ship$lat[s])
+  dest<-data.frame(id=s*2+1,lon=Ship$lon_end[s],lat=Ship$lat_end[s])
+  z<-osrmRoute(src=orig,dst=dest,sp=FALSE)
+
+  singleroute<-data.frame(startlat=tail(z$lat,length(z$lat)-1),endlat=head(z$lat,length(z$lat)-1),
+     startlon=tail(z$lon,length(z$lon)-1),endlon=head(z$lon,length(z$lon)-1))
+
+return(singleroute)
+ } #%%route --------------
+
+}
